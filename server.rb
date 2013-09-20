@@ -25,7 +25,7 @@ module MagicFramework
     end 
 
     def opt_parser
-      Options.new
+      Options.new 
     end
 
     def default_options
