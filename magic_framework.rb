@@ -2,19 +2,22 @@ require_relative 'server'
 
 module MagicFramework
 
-  attr_accessor :routes
+  class << self
+    attr_reader :routes
 
-  def initialize
-    @routes = {}
-  end 
-
-  def self.get(path, &block)
-    @routes[path] = ['GET', path, block ]
+    def get(path, &block)
+      puts 'boo'
+      @routes = {}
+      @routes[path] = ['GET', path, block ]
+    end 
   end 
 
   class App
     def call(env)
-      [200, {'Content-Type' => 'text/plain'}, ['I will be a big strong app someday!']]
+      puts MagicFramework.routes.to_s
+      if MagicFramework.routes.has_key? env['PATH_INFO']
+        return MagicFramework.routes[2].call
+      end 
       response = Rack::Response.new
       response['Content-Type'] = 'text/html'
       html = File.read 'test.html'
@@ -28,6 +31,7 @@ module MagicFramework
   # application from the MagicFramework module
   module Delegator #:nodoc:
     def self.delegate(*methods)
+      puts respond_to?(:get) + 'shasdfjl'
       methods.each do |method_name|
         define_method(method_name) do |*args, &block|
         return super(*args, &block) if respond_to? method_name
@@ -49,7 +53,4 @@ app = Rack::Builder.new do
   end 
 end 
 
-app_file = /[\/A-Za-z0-9]+.rb/.match(caller[0])[0]
-puts File.read(app_file)
-
-at_exit MagicFramework::Server.new(app).start
+at_exit { MagicFramework::Server.new(app).start }
