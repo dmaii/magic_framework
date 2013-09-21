@@ -6,6 +6,7 @@ module MagicFramework
     def initialize(app)
       @app = app
     end 
+
     class Options
       def parse!(args)
         args = args.dup
@@ -41,7 +42,6 @@ module MagicFramework
     end 
 
     def start
-      puts options
       super
     end 
   end 
