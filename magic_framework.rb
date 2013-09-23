@@ -57,15 +57,29 @@ module MagicFramework
     end 
 
     def find_match(route)
-      r = lambda { false } 
-      route.split('/').trim.each_with_index do |v, i|
-        # v is now each item in the route
-        # going through each route on routes
-        @routes.keys.each do |iv|
-          if iv.has_key? i && iv[i]
+      r = { block: lambda { false } } 
+      # For every item in routes, generate a regex matcher out of it
+      # and check if the route matches. If it's a match, then extract the
+      # route variables from the route, and return a map with the following items:
+      # block: the block associated with the route, variables: a map of variable names
+      # with their corresponding values
+      @routes.keys.each do |v|
+        # v is a map of index numbers to the regex/name in the index
+        regex = v.values.inject('') do |ir, iv|
+          ir << '/' << (iv[:regex] || iv[:name])
+        end 
+        if regex.match route
+          # If a match is found, then immediately set the block on the return value
+          r[:block] = @routes[v][1]
+          (0..((split = route.split('/')).length - 1)).each do |ii|
+            if (name_hash = v[ii]).has_key? :regex
+              r[name_hash[:name]] = split[ii]
+            end 
           end 
         end 
       end 
+      puts r.to_S
+      r
     end 
   end 
 end 
