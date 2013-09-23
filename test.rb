@@ -8,3 +8,4 @@ get '/:something' do
   'something here'
 end 
 
+puts MagicFramework::map_route('/adsf/:bb/adsf')
