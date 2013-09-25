@@ -4,82 +4,45 @@ require 'singleton'
 module MagicFramework
 
   class << self
+    # This method needs to generate a map of array index positions on the name/regex
+    # associated with that location
     def route_matcher(route)
-      r = route.split('/').reject{ |c| c.empty? }.inject('^') do |str, v|
-        str << '/' << (v.start_with?(':') ? '[A-Za-z0-9]+' : v)
+      r = {}
+      split = route.split('/').trim.each_with_index do |v, i|
+        if v.start_with? ':'
+          name = v[1..-1]
+          r[i] = { :name => name, :regex => '[A-Za-z0-9]+' }
+        else
+          name = v
+          r[i] = { :name => name }
+        end 
       end 
-      r << (r.length.eql?(1) ? '/' : '') << '$'
-    end 
-
-    # Creates a map of maps. Each section of a route maps
-    # to either 1) An map with just the indexif it's not variable or
-    # 2) a map of the variable name and the regex it requires
-    def map_route(route)
-      route.split('/').trim.inject_with_index({}) do |r, (v, i)|
-        if v.start_with? ':'  
-          content = { regex: '[A-Za-z0-9]+', name: v[1..-1] }
-        else 
-          content = { name: v }
-        end
-        r.merge({ i => content })
-      end 
-    end 
+      r 
+    end     
   end 
 
   class App
     include Singleton
 
-    attr_accessor :routes
+    attr_accessor :routes, :params
 
     def initialize
       @routes = {}
+      @params = {}
     end 
 
     def call(env)
       response = Rack::Response.new
       response['Content-Type'] = 'text/html'
       path = env['PATH_INFO']
-      match = find_match path
-      html = (m = find_match(path) && m.call) ? m.call : '404'
+      if (m = find_match(path)) && m[:block].respond_to?(:call)
+        puts m
+        html = m[:block].call
+      else
+        html = '404'
+      end 
       response.write html
       response.finish
-    end 
-
-    def find_match(route)
-      r = lambda { false }
-      @routes.keys.each do |k|
-        if Regexp.new(k).match(route)
-          r = @routes[k][1]
-          break
-        end 
-      end 
-      r
-    end 
-
-    def find_match(route)
-      r = { block: lambda { false } } 
-      # For every item in routes, generate a regex matcher out of it
-      # and check if the route matches. If it's a match, then extract the
-      # route variables from the route, and return a map with the following items:
-      # block: the block associated with the route, variables: a map of variable names
-      # with their corresponding values
-      @routes.keys.each do |v|
-        # v is a map of index numbers to the regex/name in the index
-        regex = v.values.inject('') do |ir, iv|
-          ir << '/' << (iv[:regex] || iv[:name])
-        end 
-        if regex.match route
-          # If a match is found, then immediately set the block on the return value
-          r[:block] = @routes[v][1]
-          (0..((split = route.split('/')).length - 1)).each do |ii|
-            if (name_hash = v[ii]).has_key? :regex
-              r[name_hash[:name]] = split[ii]
-            end 
-          end 
-        end 
-      end 
-      puts r.to_S
-      r
     end 
   end 
 end 
@@ -95,6 +58,35 @@ module Enumerable
   end 
 end
 
+
+def params
+  MagicFramework::App.instance.params
+end 
+
+# For this method to work, routes would need to be keyed by a map of index numbers to the 
+# regex/name in the index to the block associated with it
+define_method('find_match') do |route|
+  include MagicFramework
+  r = { block: lambda { false } } 
+  App.instance.routes.keys.each do |v|
+    # v is a map of index numbers to the regex/name in the index
+    regex = v.values.inject('') do |ir, iv|
+      ir << '/' << (iv[:regex] || iv[:name])
+    end 
+    if Regexp.new(regex).match route
+      # If a match is found, then immediately set the block on the return value
+      r[:block] = App.instance.routes[v][1]
+      (0..((split = route.split('/').trim).length - 1)).each do |ii|
+        name_hash = v[ii] || {}
+        if name_hash.has_key? :regex
+          r[name_hash[:name].to_sym] = split[ii] 
+          App.instance.params= r.reject { |k| k.eql? :block }
+        end 
+      end 
+    end 
+  end 
+  r
+end 
 
 def get(path, &blk)
   matcher = MagicFramework.route_matcher path
