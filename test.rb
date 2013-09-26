@@ -1,4 +1,6 @@
 require 'singleton'
+require_relative 'constants'
+require_relative 'util'
 
 
 # Variables are in this order: |r, (v, i)|
@@ -24,10 +26,17 @@ def route_matcher(route)
     if v.start_with? ':'
       name = v[1..-1]
       r[i] = { :name => name, :regex => '[A-Za-z0-9]+' }
-    elsif v.eql? '*' 
-      # If it's *, save which splat it is
-      r[i] = { :regex => '[A-Za-z0-9]+', :splat => splat_index }
-      splat_index += 1
+    elsif v.include? '*' 
+      if v.eql? '*' 
+        # If it's *, save which splat it is
+        r[i] = { :regex => '[A-Za-z0-9]+', :splat => splat_index }
+        splat_index += 1  
+      else
+        r[i] = { :regex => v.gsub('*', '[A-Za-z0-9]+'),  
+          :splat => splat_index, 
+          :mult_splat => true }
+        splat_index += 1
+      end 
     else 
       name = v
       r[i] = { :name => name }
@@ -85,8 +94,12 @@ define_method('find_match') do |route|
         name_hash = v[ii]
         if name_hash.has_key? :regex
           if name_hash.has_key? :splat 
-            params[:splat] ||= []
-            params[:splat] << split[ii]
+            if name_hash.has_key? :splat_mult
+               
+            else 
+              params[:splat] ||= []
+              params[:splat] << split[ii]
+            end 
           else 
             r[name_hash[:name].to_sym] = split[ii] 
             params = r.reject { |k| k.eql? :block }
