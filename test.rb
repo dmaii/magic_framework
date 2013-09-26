@@ -15,12 +15,18 @@ end
 def route_matcher(route)
   r = {}
   splat_index = 0
+
+  # This goes through all the values of a route, separated by a forward
+  # slash. If the value is starts with a colon, then it's going to be a
+  # variable. If it's a * and only a *, then it should be included in the
+  # splat array in params.  
   split = route.split('/').trim.each_with_index do |v, i|
     if v.start_with? ':'
       name = v[1..-1]
       r[i] = { :name => name, :regex => '[A-Za-z0-9]+' }
     elsif v.eql? '*' 
-      r[i] = { :regex => ,'[A-Za-z0-9]+', :splat => splat_index }
+      # If it's *, save which splat it is
+      r[i] = { :regex => '[A-Za-z0-9]+', :splat => splat_index }
       splat_index += 1
     else 
       name = v
@@ -48,12 +54,16 @@ get '/boo/:soo/poo' do
   params[:soo]
 end 
 
+get '/*' do
+  params[:splat].to_s
+end 
+
 puts Test.instance.routes
 
 # For this method to work, routes would need to be keyed by a map of index numbers to the 
 # regex/name in the index to the block associated with it
 
-define_singleton_method('find_match') do |route|
+define_method('find_match') do |route|
   params = {}
   r = { block: lambda { false } } 
   # For every item in routes, generate a regex matcher out of it
@@ -68,13 +78,19 @@ define_singleton_method('find_match') do |route|
     end 
     if Regexp.new(regex).match route
       # If a match is found, then immediately set the block on the return value
+      # v[ii] is the actual value of the current route item we're on
+      #require 'debugger'; debugger;
       r[:block] = Test.instance.routes[v][1]
       (0..((split = route.split('/').trim).length - 1)).each do |ii|
         name_hash = v[ii]
         if name_hash.has_key? :regex
-          r[name_hash[:name].to_sym] = split[ii] 
-          params = r.reject { |k| k.eql? :block }
-        elsif name_hash.has_key? :splat
+          if name_hash.has_key? :splat 
+            params[:splat] ||= []
+            params[:splat] << split[ii]
+          else 
+            r[name_hash[:name].to_sym] = split[ii] 
+            params = r.reject { |k| k.eql? :block }
+          end 
         end 
       end 
     end 
@@ -82,7 +98,7 @@ define_singleton_method('find_match') do |route|
   r
 end 
 
-path = '/boo/asdf/poo'
+path = '/asdfasdf'
 puts find_match(path)
 if (m = find_match(path)) && m[:block].respond_to?(:call)
   html = m[:block].call

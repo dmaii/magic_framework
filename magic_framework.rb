@@ -1,17 +1,23 @@
 require_relative 'server'
+require_relative 'constants'
 require 'singleton'
+include Constants
 
 module MagicFramework
-
   class << self
     # This method needs to generate a map of array index positions on the name/regex
     # associated with that location
     def route_matcher(route)
       r = {}
+      splat_index = 0
       split = route.split('/').trim.each_with_index do |v, i|
         if v.start_with? ':'
           name = v[1..-1]
-          r[i] = { :name => name, :regex => '[A-Za-z0-9]+' }
+          r[i] = { :name => name, :regex => ALPHANUMERIC }
+        elsif v.eql? '*'
+          # If it's *, save which splat it is
+          r[i] = { :regex => ALPHANUMERIC, :splat => splat_index }
+          splat_index += 1
         else
           name = v
           r[i] = { :name => name }
@@ -65,8 +71,13 @@ module MagicFramework
           (0..((split = route.split('/').trim).length - 1)).each do |ii|
             name_hash = v[ii] || {}
             if name_hash.has_key? :regex
-              r[name_hash[:name].to_sym] = split[ii] 
-              @params= r.reject { |k| k.eql? :block }
+              if name_hash.has_key? :splat
+                params[:splat] ||= []
+                params[:splat] << split[ii]
+              else
+                r[name_hash[:name].to_sym] = split[ii] 
+                @params= r.reject { |k| k.eql? :block }
+              end 
             end 
           end 
         end 
@@ -96,7 +107,6 @@ def get(path, &blk)
   matcher = MagicFramework.route_matcher path
   MagicFramework::App.instance.routes[matcher] = ['GET', blk]
 end 
-
 
 app = Rack::Builder.new do 
   use Rack::CommonLogger
