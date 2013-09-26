@@ -36,13 +36,42 @@ module MagicFramework
       response['Content-Type'] = 'text/html'
       path = env['PATH_INFO']
       if (m = find_match(path)) && m[:block].respond_to?(:call)
-        puts m
+        puts m.to_s
         html = m[:block].call
       else
         html = '404'
       end 
       response.write html
       response.finish
+    end 
+
+    def find_match(route) 
+      r = { block: lambda { false } } 
+      puts @routes
+      @routes.keys.each do |v|
+        # v is a map of index numbers to the regex/name in the index
+        if v.empty?
+          regex = '^/$'
+        else
+          regex = '^'
+          regex << v.values.inject('') do |ir, iv|
+            ir << '/' << (iv[:regex] || iv[:name])
+          end 
+          regex << '$'
+        end 
+        if Regexp.new(regex).match route
+          # If a match is found, then immediately set the block on the return value
+          r[:block] = @routes[v][1]
+          (0..((split = route.split('/').trim).length - 1)).each do |ii|
+            name_hash = v[ii] || {}
+            if name_hash.has_key? :regex
+              r[name_hash[:name].to_sym] = split[ii] 
+              @params= r.reject { |k| k.eql? :block }
+            end 
+          end 
+        end 
+      end 
+      r
     end 
   end 
 end 
@@ -61,31 +90,6 @@ end
 
 def params
   MagicFramework::App.instance.params
-end 
-
-# For this method to work, routes would need to be keyed by a map of index numbers to the 
-# regex/name in the index to the block associated with it
-define_method('find_match') do |route|
-  include MagicFramework
-  r = { block: lambda { false } } 
-  App.instance.routes.keys.each do |v|
-    # v is a map of index numbers to the regex/name in the index
-    regex = v.values.inject('') do |ir, iv|
-      ir << '/' << (iv[:regex] || iv[:name])
-    end 
-    if Regexp.new(regex).match route
-      # If a match is found, then immediately set the block on the return value
-      r[:block] = App.instance.routes[v][1]
-      (0..((split = route.split('/').trim).length - 1)).each do |ii|
-        name_hash = v[ii] || {}
-        if name_hash.has_key? :regex
-          r[name_hash[:name].to_sym] = split[ii] 
-          App.instance.params= r.reject { |k| k.eql? :block }
-        end 
-      end 
-    end 
-  end 
-  r
 end 
 
 def get(path, &blk)

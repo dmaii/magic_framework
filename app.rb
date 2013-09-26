@@ -4,7 +4,7 @@ get '/' do
   'Hello, World!'
 end
 
-get '/:something' do 
+get '/:something/:boo/adsf' do 
   puts params
   params[:something]
 end 

@@ -14,11 +14,15 @@ end
 
 def route_matcher(route)
   r = {}
+  splat_index = 0
   split = route.split('/').trim.each_with_index do |v, i|
     if v.start_with? ':'
       name = v[1..-1]
       r[i] = { :name => name, :regex => '[A-Za-z0-9]+' }
-    else
+    elsif v.eql? '*' 
+      r[i] = { :regex => ,'[A-Za-z0-9]+', :splat => splat_index }
+      splat_index += 1
+    else 
       name = v
       r[i] = { :name => name }
     end 
@@ -49,7 +53,7 @@ puts Test.instance.routes
 # For this method to work, routes would need to be keyed by a map of index numbers to the 
 # regex/name in the index to the block associated with it
 
-define_method('find_match') do |route|
+define_singleton_method('find_match') do |route|
   params = {}
   r = { block: lambda { false } } 
   # For every item in routes, generate a regex matcher out of it
@@ -70,6 +74,7 @@ define_method('find_match') do |route|
         if name_hash.has_key? :regex
           r[name_hash[:name].to_sym] = split[ii] 
           params = r.reject { |k| k.eql? :block }
+        elsif name_hash.has_key? :splat
         end 
       end 
     end 
