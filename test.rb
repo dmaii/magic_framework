@@ -17,7 +17,6 @@ end
 def route_matcher(route)
   r = {}
   splat_index = 0
-
   # This goes through all the values of a route, separated by a forward
   # slash. If the value is starts with a colon, then it's going to be a
   # variable. If it's a * and only a *, then it should be included in the
@@ -44,6 +43,7 @@ def route_matcher(route)
   end 
   r 
 end     
+
 class Test
   include Singleton
   attr_accessor :routes 
@@ -59,20 +59,12 @@ def get(path, &blk)
   Test.instance.routes[matcher] = ['GET', blk]
 end 
 
-get '/boo/:soo/poo' do
-  params[:soo]
-end 
 
-get '/*' do
-  params[:splat].to_s
-end 
-
-puts Test.instance.routes
 
 # For this method to work, routes would need to be keyed by a map of index numbers to the 
 # regex/name in the index to the block associated with it
 
-define_method('find_match') do |route|
+define_singleton_method('find_match') do |route|
   params = {}
   r = { block: lambda { false } } 
   # For every item in routes, generate a regex matcher out of it
@@ -88,16 +80,13 @@ define_method('find_match') do |route|
     if Regexp.new(regex).match route
       # If a match is found, then immediately set the block on the return value
       # v[ii] is the actual value of the current route item we're on
-      #require 'debugger'; debugger;
       r[:block] = Test.instance.routes[v][1]
       (0..((split = route.split('/').trim).length - 1)).each do |ii|
         name_hash = v[ii]
-        if name_hash.has_key? :regex
+        if name_hash && name_hash.has_key?(:regex)
           if name_hash.has_key? :splat 
+            params[:splat] ||= []               
             if name_hash.has_key? :splat_mult
-               
-            else 
-              params[:splat] ||= []
               params[:splat] << split[ii]
             end 
           else 
@@ -111,13 +100,52 @@ define_method('find_match') do |route|
   r
 end 
 
-path = '/asdfasdf'
-puts find_match(path)
+=begin
+get '/boo/:soo/poo' do
+  params[:soo]
+end 
+=end
+
+get '/*.*boo*asf' do
+  params[:splat].to_s
+end 
+
+puts Test.instance.routes
+
+path = 'badfasd.bgfbfgboobsdfeasf'
+
 if (m = find_match(path)) && m[:block].respond_to?(:call)
   html = m[:block].call
 else
   html = '404'
 end 
 
-puts html
+puts 'html' + html.to_s
 
+route = '/*.*boo*asf'
+path = 'badfasd.bgfbfgboobsdfeasf'
+container = []
+# Should be: badfasd, bgfbfg, bsdfe
+#require 'debugger'; debugger;
+delimiters = route[1..route.size].split('*').trim
+
+# The closest match including the delimiter
+matched_with_delimiter = path.match(/([A-Za-z0-9]+)#{delimiter = delimiters.shift}/)[0]
+container << matched_with_delimiter[0...-delimiter.size]
+
+# Remove the delimiter from the path
+path = path[matched_with_delimiter.size...path.size]
+
+def mult_splat_params(defined_route, user_route)
+  path, route = user_route[1..-1], defined_route[1..-1]
+  delimiters = route.split('*').trim
+  r = []
+  while matched = route.match(/([A-Za-z0-9]+)#{delimiter = delimiters.shift}/)
+    matched_with_delimiter = matched[0]
+    r << (no_delimiter = matched_with_delimiter[0..-delimiter.size])
+    path = path[matched_with_delimiter.size...path.size]
+  end 
+  r
+end 
+
+puts mult_splat_params(route, path).to_s
