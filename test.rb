@@ -1,7 +1,9 @@
-require 'singleton'
-require_relative 'constants'
-require_relative 'util'
+#$LOAD_PATH.unshift
+$:.unshift File.dirname(__FILE__) + '/lib'
 
+require 'singleton'
+require 'magic_framework/constants'
+require 'magic_framework/util'
 
 # Variables are in this order: |r, (v, i)|
 module Enumerable
@@ -59,6 +61,16 @@ def get(path, &blk)
   Test.instance.routes[matcher] = ['GET', blk]
 end 
 
+def mult_splat_params(route, path)
+  delimiters = route.split('[A-Za-z0-9]+').trim
+  r = []
+  while matched = path.match(/([A-Za-z0-9]+)#{delimiter = delimiters.shift}/)
+    matched_with_delimiter = matched[0]
+    r << (no_delimiter = matched_with_delimiter[0...-delimiter.size])
+    path = path[matched_with_delimiter.size...path.size]
+  end 
+  r
+end 
 
 
 # For this method to work, routes would need to be keyed by a map of index numbers to the 
@@ -86,7 +98,9 @@ define_singleton_method('find_match') do |route|
         if name_hash && name_hash.has_key?(:regex)
           if name_hash.has_key? :splat 
             params[:splat] ||= []               
-            if name_hash.has_key? :splat_mult
+            if name_hash.has_key? :mult_splat
+              params[:splat] << mult_splat_params(name_hash[:regex], split[ii])
+            else 
               params[:splat] << split[ii]
             end 
           else 
@@ -112,7 +126,7 @@ end
 
 puts Test.instance.routes
 
-path = 'badfasd.bgfbfgboobsdfeasf'
+path = '/badfasd.bgfbfgboobsdfeasf'
 
 if (m = find_match(path)) && m[:block].respond_to?(:call)
   html = m[:block].call
@@ -122,7 +136,7 @@ end
 
 puts 'html' + html.to_s
 
-route = '/*.*boo*asf'
+route = '*.*boo*asf'
 path = 'badfasd.bgfbfgboobsdfeasf'
 container = []
 # Should be: badfasd, bgfbfg, bsdfe
@@ -134,18 +148,5 @@ matched_with_delimiter = path.match(/([A-Za-z0-9]+)#{delimiter = delimiters.shif
 container << matched_with_delimiter[0...-delimiter.size]
 
 # Remove the delimiter from the path
-path = path[matched_with_delimiter.size...path.size]
+#path = path[matched_with_delimiter.size...path.size]
 
-def mult_splat_params(defined_route, user_route)
-  path, route = user_route[1..-1], defined_route[1..-1]
-  delimiters = route.split('*').trim
-  r = []
-  while matched = route.match(/([A-Za-z0-9]+)#{delimiter = delimiters.shift}/)
-    matched_with_delimiter = matched[0]
-    r << (no_delimiter = matched_with_delimiter[0..-delimiter.size])
-    path = path[matched_with_delimiter.size...path.size]
-  end 
-  r
-end 
-
-puts mult_splat_params(route, path).to_s
